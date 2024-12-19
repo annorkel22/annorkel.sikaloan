@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SikaLoan USSD Service</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        label {
+            font-weight: bold;
+            margin-top: 10px;
+            display: block;
+        }
+        input, select, textarea, button {
+            width: 100%;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9f5e9;
+            color: #2d7f2d;
+            border: 1px solid #c9e7c9;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SikaLoan Service</h1>
+        <form id="sikaLoanForm">
+            <label for="operation">Choose an Operation:</label>
+            <select id="operation">
+                <option value="register">Register</option>
+                <option value="loan">Take a Loan</option>
+                <option value="payment">Pay Loan</option>
+                <option value="feedback">Report an Issue</option>
+            </select>
+
+            <div id="formFields">
+                <!-- Dynamic form fields will be added here -->
+            </div>
+
+            <button type="button" onclick="handleOperation()">Submit</button>
+        </form>
+
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        const users = {};
+        const loans = {};
+        const payments = {};
+        const feedbacks = [];
+
+        function handleOperation() {
+            const operation = document.getElementById("operation").value;
+            const formData = new FormData(document.getElementById("sikaLoanForm"));
+            const phoneNumber = formData.get("phoneNumber") || "";
+
+            let response = "";
+
+            if (operation === "register") {
+                const ghanaCard = formData.get("ghanaCard");
+                const votersId = formData.get("votersId");
+                const fullName = formData.get("fullName");
+
+                if (!ghanaCard || !votersId || !fullName || !phoneNumber) {
+                    response = "Please fill all fields.";
+                } else if (!/^GHA\d{10}$/i.test(ghanaCard)) {
+                    response = "Invalid Ghana Card number. It must start with 'GHA' followed by 10 digits.";
+                } else if (users[phoneNumber]) {
+                    response = "Phone number already registered.";
+                } else {
+                    users[phoneNumber] = { ghanaCard, votersId, fullName };
+                    response = `Congratulations, ${fullName}, you have successfully registered with SikaLoan!`;
+                }
+            } else if (operation === "loan") {
+                const loanAmount = parseInt(formData.get("loanAmount"), 10);
+                const duration = formData.get("duration");
+                const user = users[phoneNumber];
+
+                if (!user) {
+                    response = "You need to register first.";
+                } else if (user.fullName !== formData.get("fullName")) {
+                    response = "Name does not match the registered user.";
+                } else if (loanAmount < 100 || loanAmount > 3000) {
+                    response = "Enter an amount between 100 and 3000 GHS.";
+                } else {
+                    loans[phoneNumber] = {
+                        amount: loanAmount,
+                        duration,
+                        balance: loanAmount,
+                    };
+                    response = `Loan of ${loanAmount} GHS approved for ${duration}. Terms and conditions apply.`;
+                }
+            } else if (operation === "payment") {
+                const paymentAmount = parseFloat(formData.get("paymentAmount"));
+
+                if (!loans[phoneNumber]) {
+                    response = "You have no active loans.";
+                } else if (paymentAmount <= 0 || paymentAmount > loans[phoneNumber].balance) {
+                    response = "Invalid payment amount.";
+                } else {
+                    loans[phoneNumber].balance -= paymentAmount;
+                    payments[phoneNumber] = payments[phoneNumber] || [];
+                    payments[phoneNumber].push(paymentAmount);
+
+                    if (loans[phoneNumber].balance === 0) {
+                        response = "Payment successful! You have fully paid your loan.";
+                    } else {
+                        response = `Payment successful! Remaining balance: ${loans[phoneNumber].balance} GHS.`;
+                    }
+                }
+            } else if (operation === "feedback") {
+                const feedback = formData.get("feedback");
+
+                if (!feedback) {
+                    response = "Please enter your feedback or issue.";
+                } else {
+                    feedbacks.push({ feedback, date: new Date().toLocaleDateString() });
+                    response = "Thank you for your feedback! We will address it shortly.";
+                }
+            }
+
+            displayResponse(response);
+        }
+
+        function displayResponse(response) {
+            const responseDiv = document.getElementById("response");
+            responseDiv.style.display = "block";
+            responseDiv.textContent = response;
+        }
+
+        document.getElementById("operation").addEventListener("change", function () {
+            const operation = this.value;
+            const formFields = document.getElementById("formFields");
+
+            formFields.innerHTML = "";
+
+            if (operation === "register") {
+                formFields.innerHTML = `
+                    <label for="ghanaCard">Ghana Card Number:</label>
+                    <input type="text" id="ghanaCard" name="ghanaCard" required>
+                    <label for="votersId">Voter's ID:</label>
+                    <input type="text" id="votersId" name="votersId" required>
+                    <label for="fullName">Full Name:</label>
+                    <input type="text" id="fullName" name="fullName" required>
+                    <label for="phoneNumber">Phone Number:</label>
+                    <input type="text" id="phoneNumber" name="phoneNumber" required>
+                `;
+            } else if (operation === "loan") {
+                formFields.innerHTML = `
+                    <label for="fullName">Registered Full Name:</label>
+                    <input type="text" id="fullName" name="fullName" required>
+                    <label for="phoneNumber">Phone Number:</label>
+                    <input type="text" id="phoneNumber" name="phoneNumber" required>
+                    <label for="loanAmount">Loan Amount (100 - 3000 GHS):</label>
+                    <input type="number" id="loanAmount" name="loanAmount" required>
+                    <label for="duration">Repayment Duration:</label>
+                    <select id="duration" name="duration" required>
+                        <option value="3 months">3 months</option>
+                        <option value="6 months">6 months</option>
+                    </select>
+                `;
+            } else if (operation === "payment") {
+                formFields.innerHTML = `
+                    <label for="phoneNumber">Phone Number:</label>
+                    <input type="text" id="phoneNumber" name="phoneNumber" required>
+                    <label for="paymentAmount">Payment Amount:</label>
+                    <input type="number" id="paymentAmount" name="paymentAmount" required>
+                `;
+            } else if (operation === "feedback") {
+                formFields.innerHTML = `
+                    <label for="feedback">Feedback or Issue:</label>
+                    <textarea id="feedback" name="feedback" rows="4" required></textarea>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
